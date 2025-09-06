@@ -1,19 +1,11 @@
 "use client";
 
-import { useCallback } from "react";
 import { Particles } from "@tsparticles/react";
-import { loadBasic } from "@tsparticles/basic";
-import type { Engine } from "@tsparticles/engine";
 
 export default function ParticlesBackground() {
-  const particlesInit = useCallback(async (engine: Engine) => {
-    await loadBasic(engine);
-  }, []);
-
   return (
     <Particles
       id="tsparticles"
-      particlesInit={particlesInit}
       options={{
         background: {
           color: "transparent",
@@ -24,9 +16,6 @@ export default function ParticlesBackground() {
             onHover: {
               enable: true,
               mode: "repulse",
-            },
-            resize: {
-              enable: true,
             },
           },
           modes: {
@@ -60,8 +49,6 @@ export default function ParticlesBackground() {
           number: {
             density: {
               enable: true,
-              width: 800,
-              height: 800,
             },
             value: 50,
           },
