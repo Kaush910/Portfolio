@@ -1,6 +1,14 @@
 "use client";
 import React, { useState, useEffect } from "react";
 
+type Project = {
+  id: number;
+  title: string;
+  tech: string;
+  description: string;
+  details: string;
+};
+
 export default function Home() {
   const [currentPage, setCurrentPage] = useState("home");
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -306,7 +314,7 @@ export default function Home() {
         ) : (
           <div className={`bg-slate-800/40 backdrop-blur-md rounded-lg p-8 border border-slate-700 shadow-lg transform transition-all duration-1000 ease-in-out ${isLoaded ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0'} text-left`}>
             <button
-              onClick={() => setSelectedProject(null)}
+              onClick={() => setSelectedProject(Project)}
               className="mb-6 text-gray-300 hover:text-white flex items-center gap-2 hover:gap-3 transition-all duration-600 ease-in-out group transform hover:-translate-x-1"
             >
               <span className="text-lg transform group-hover:-translate-x-1 transition-transform duration-600 ease-in-out">←</span>
