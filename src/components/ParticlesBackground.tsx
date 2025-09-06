@@ -60,7 +60,8 @@ export default function ParticlesBackground() {
           number: {
             density: {
               enable: true,
-              area: 800,
+              width: 800,
+              height: 800,
             },
             value: 50,
           },
