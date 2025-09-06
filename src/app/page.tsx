@@ -11,7 +11,7 @@ export default function Home() {
     },
   ]);
   const [inputValue, setInputValue] = useState("");
-  const [selectedProject, setSelectedProject] = useState(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
