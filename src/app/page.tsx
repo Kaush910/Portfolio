@@ -1,6 +1,14 @@
 "use client";
 import React, { useState, useEffect } from "react";
 
+type Project = {
+  id: number;
+  title: string;
+  tech: string;
+  description: string;
+  details: string;
+};
+
 export default function Home() {
   const [currentPage, setCurrentPage] = useState("home");
   const [isChatOpen, setIsChatOpen] = useState(false);
