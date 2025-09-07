@@ -40,7 +40,7 @@ export default function Spotlight() {
       className="pointer-events-none fixed inset-0 z-[50] mix-blend-screen"
       style={{
         background:
-          "radial-gradient(220px 220px at var(--spot-x,-100px) var(--spot-y,-100px), rgba(120,96,255,0.20), transparent 60%)",
+          "radial-gradient(320px 320px at var(--spot-x,-100px) var(--spot-y,-100px), rgba(120,96,255,0.20), transparent 70%)",
         transition: "background var(--spot-smooth,0ms) linear",
       }}
     />
