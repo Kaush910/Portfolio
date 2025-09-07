@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 export default function Spotlight() {
   const pos = useRef({ x: 0, y: 0 });
   const target = useRef({ x: 0, y: 0 });
-  const raf = useRef<number>();
+  const raf = useRef<number | null>(null);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
