@@ -134,24 +134,24 @@ export default function Home() {
 
         <div className={`grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-6 max-w-4xl mx-auto transform transition-all duration-1000 ease-in-out delay-400 ${isLoaded ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0'}`}>
           {[
-            { name: "Java", icon: "☕" },
-            { name: "Python", icon: "🐍" },
-            { name: "React", icon: "⚛️" },
-            { name: "Spring Boot", icon: "🌱" },
-            { name: "SQL", icon: "🗄️" },
-            { name: "AWS", icon: "☁️" },
-            { name: "Azure", icon: "🌐" },
-            { name: "Terraform", icon: "🏗️" },
-            { name: "Kubernetes", icon: "⚙️" },
-            { name: "Splunk", icon: "📊" },
-            { name: "MCP", icon: "🔗" },
-            { name: "LLMs", icon: "🧠" },
+            { name: "Java", icon: "{ }", color: "text-orange-400" },
+            { name: "Python", icon: "λ", color: "text-green-400" },
+            { name: "React", icon: "⚛", color: "text-cyan-400" },
+            { name: "Spring Boot", icon: "◉", color: "text-green-500" },
+            { name: "SQL", icon: "⚡", color: "text-yellow-400" },
+            { name: "AWS", icon: "△", color: "text-orange-500" },
+            { name: "Azure", icon: "◈", color: "text-blue-400" },
+            { name: "Terraform", icon: "⟐", color: "text-purple-400" },
+            { name: "Kubernetes", icon: "⬡", color: "text-blue-300" },
+            { name: "Splunk", icon: "▣", color: "text-green-400" },
+            { name: "MCP", icon: "⟋", color: "text-cyan-300" },
+            { name: "LLMs", icon: "◎", color: "text-pink-400" },
           ].map((skill, idx) => (
             <div key={idx} className="group flex flex-col items-center">
-              <div className="w-14 h-14 bg-slate-800/60 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-600 ease-in-out hover:scale-110 hover:-translate-y-1 border border-slate-600">
-                <div className="text-lg text-gray-300">{skill.icon}</div>
+                    <div className="w-14 h-14 bg-slate-800/60 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-600 ease-in-out hover:scale-110 hover:-translate-y-1 border border-cyan-400/50 hover:border-cyan-300">
+                    <div className={`text-xl ${skill.color} group-hover:brightness-110 transition-all duration-600 font-bold`}>{skill.icon}</div>
               </div>
-              <div className="text-xs text-gray-400 group-hover:text-gray-300 mt-2 font-medium transition-colors duration-600 ease-in-out">
+              <div className="text-xs text-cyan-400/80 group-hover:text-cyan-300 mt-2 font-medium transition-colors duration-600 ease-in-out">
                 {skill.name}
               </div>
             </div>
