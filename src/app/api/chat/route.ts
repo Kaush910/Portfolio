@@ -2,11 +2,14 @@ import { NextResponse } from "next/server"
 import OpenAI from "openai"
 import { getResumeText } from "@/lib/resume"
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
 export async function POST(req: Request) {
   const { message } = await req.json()
   const resume = await getResumeText()
+
+  // ✅ Instantiate client here, at runtime
+  const client = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  })
 
   try {
     const completion = await client.chat.completions.create({
@@ -35,6 +38,9 @@ Instructions:
     return NextResponse.json({ reply })
   } catch (err: any) {
     console.error("OpenAI API error:", err)
-    return NextResponse.json({ reply: "Sorry, there was an error processing your request." }, { status: 500 })
+    return NextResponse.json(
+      { reply: "Sorry, there was an error processing your request." },
+      { status: 500 }
+    )
   }
 }
