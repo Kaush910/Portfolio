@@ -37,7 +37,7 @@ export default function Home() {
  const [inputValue, setInputValue] = useState("");
  const [isLoaded, setIsLoaded] = useState(false);
  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
- const [expandedProject, setExpandedProject] = useState(null);
+ const [expandedProject, setExpandedProject] = useState<number | null>(null);
 
 
  useEffect(() => {
