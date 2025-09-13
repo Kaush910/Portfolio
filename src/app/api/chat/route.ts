@@ -1,70 +1,55 @@
-import { NextResponse } from "next/server"
-import OpenAI from "openai"
-import { getResumeText } from "@/lib/resume"
+// Remove the duplicate line and keep only this one:
+const [expandedProject, setExpandedProject] = useState<number | null>(null);
 
-export async function POST(req: Request) {
-  // Debug logging
-  console.log("OPENAI_API_KEY exists:", !!process.env.OPENAI_API_KEY)
-  console.log("OPENAI_API_KEY length:", process.env.OPENAI_API_KEY?.length || 0)
-  
-  const { message } = await req.json()
-  
-  // Check if API key exists before proceeding
-  if (!process.env.OPENAI_API_KEY) {
-    console.error("Missing OPENAI_API_KEY environment variable")
-    return NextResponse.json(
-      { reply: "OpenAI API key is not configured" },
-      { status: 500 }
-    )
-  }
+// Also make sure your Experience type is properly defined:
+type Experience = {
+  id: number;
+  title: string;
+  company: string;
+  period: string;
+  location: string;
+  achievements: string[];
+  technologies: string[];
+};
 
-  try {
-    const resume = await getResumeText()
-    
-    // ✅ Instantiate client here, at runtime
-    const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    })
+export default function Home() {
+  const [currentPage, setCurrentPage] = useState("home");
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [messages, setMessages] = useState([
+    {
+      type: "bot",
+      text: "🤖 Hi! I'm Sai's AI assistant. Ask me about his experience, skills, or projects!",
+    },
+  ]);
+  const [inputValue, setInputValue] = useState("");
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // ✅ Keep only this line, remove the duplicate
+  const [expandedProject, setExpandedProject] = useState<number | null>(null);
 
-    const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You are an AI assistant for Sai Kaushik Manchala. Answer questions based on the following resume:
+  useEffect(() => {
+    setTimeout(() => setIsLoaded(true), 100);
+  }, []);
 
-${resume}
-
-Instructions:
-- Answer questions about Kaushik's skills, experience, projects, education, and background based on the resume
-- Be conversational and helpful 
-- Look for partial matches, acronyms, and related terms (e.g., if someone asks about "MCP", relate it to "MCP integration" in the projects)
-- If someone asks about specific technologies, tools, or concepts mentioned in the resume, provide relevant details
-- If the information is not in the resume or not related to Kaushik's background, politely say "This is not mentioned in Kaushik's resume" or "I don't have information about that in Kaushik's resume"
-- Be specific and detailed when the information is available in the resume
-- Use a friendly, professional tone`
-        },
-        { role: "user", content: message }
+  // Your experiences data...
+  const experiences: Experience[] = [
+    {
+      id: 1,
+      title: "Software Engineer - Infrastructure",
+      company: "Mastronardi Produce Limited",
+      period: "May 2025 – Present",
+      location: "Remote",
+      technologies: ["Terraform", "Azure", "DevOps", "Kubernetes", "Monitoring"],
+      achievements: [
+        "Designed reusable Terraform modules and automated Azure infrastructure provisioning for 6 enterprise applications, including GSP 2.0 and NAV 2018",
+        "Automated deployment of Azure SQL (Databases, SQL Server, Flexible Server, and Managed Instances) using Terraform and Azure DevOps pipelines",
+        "Deployed and configured Azure APIMs, Function Apps, Web App Services, App Service Plans, and AKS clusters for highly available application hosting",
+        "Built Terraform-based automation for NSGs, WAFs, and related Azure security resources, ensuring compliance and protection",
+        "Integrated Delinia and CrowdStrike into Azure workloads for enterprise-grade endpoint protection and identity access management",
       ]
-    })
+    }
+    // ... rest of your experiences
+  ];
 
-    const reply = completion.choices[0].message.content
-    return NextResponse.json({ reply })
-  } catch (err: any) {
-    console.error("OpenAI API error:", err)
-    console.error("Error details:", err.message)
-    return NextResponse.json(
-      { reply: "Sorry, there was an error processing your request." },
-      { status: 500 }
-    )
-  }
-}
-
-// Add a GET method for testing
-export async function GET() {
-  return NextResponse.json({ 
-    message: "Chat API is running",
-    hasApiKey: !!process.env.OPENAI_API_KEY,
-    apiKeyLength: process.env.OPENAI_API_KEY?.length || 0
-  })
+  // Rest of your component...
 }
