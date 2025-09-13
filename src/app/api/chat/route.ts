@@ -3,15 +3,29 @@ import OpenAI from "openai"
 import { getResumeText } from "@/lib/resume"
 
 export async function POST(req: Request) {
+  // Debug logging
+  console.log("OPENAI_API_KEY exists:", !!process.env.OPENAI_API_KEY)
+  console.log("OPENAI_API_KEY length:", process.env.OPENAI_API_KEY?.length || 0)
+  
   const { message } = await req.json()
-  const resume = await getResumeText()
-
-  // ✅ Instantiate client here, at runtime
-  const client = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  })
+  
+  // Check if API key exists before proceeding
+  if (!process.env.OPENAI_API_KEY) {
+    console.error("Missing OPENAI_API_KEY environment variable")
+    return NextResponse.json(
+      { reply: "OpenAI API key is not configured" },
+      { status: 500 }
+    )
+  }
 
   try {
+    const resume = await getResumeText()
+    
+    // ✅ Instantiate client here, at runtime
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -38,9 +52,19 @@ Instructions:
     return NextResponse.json({ reply })
   } catch (err: any) {
     console.error("OpenAI API error:", err)
+    console.error("Error details:", err.message)
     return NextResponse.json(
       { reply: "Sorry, there was an error processing your request." },
       { status: 500 }
     )
   }
+}
+
+// Add a GET method for testing
+export async function GET() {
+  return NextResponse.json({ 
+    message: "Chat API is running",
+    hasApiKey: !!process.env.OPENAI_API_KEY,
+    apiKeyLength: process.env.OPENAI_API_KEY?.length || 0
+  })
 }
