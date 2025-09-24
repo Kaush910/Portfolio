@@ -1,108 +1,143 @@
-// src/app/api/chat/route.ts
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
-import { getResumeText } from "@/lib/resume"
+import { getResumeSections } from "@/lib/resume"
+
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
+// Enhanced keyword matching for better context retrieval
+function getRelevantSections(userMessage: string, sections: any) {
+  const message = userMessage.toLowerCase()
+  const relevantSections: string[] = []
+  
+  // Always include summary for context
+  relevantSections.push(`=== SUMMARY ===\n${sections.summary}`)
+  
+  // Skill-related keywords
+  if (message.match(/skill|technology|tech|stack|tool|language|framework|cloud|aws|azure|kubernetes|docker|python|go|terraform|devops|programming/)) {
+    relevantSections.push(`=== TECHNICAL SKILLS ===\n${sections.skills}`)
+  }
+  
+  // Experience-related keywords
+  if (message.match(/work|job|experience|role|company|project|responsibility|achievement|career|previous|current|employer/)) {
+    relevantSections.push(`=== WORK EXPERIENCE ===\n${sections.experience}`)
+  }
+  
+  // Project-related keywords
+  if (message.match(/project|built|created|developed|application|app|build|side project/)) {
+    relevantSections.push(`=== PROJECTS ===\n${sections.projects}`)
+  }
+  
+  // Education-related keywords
+  if (message.match(/education|degree|university|college|study|gpa|coursework|academic/)) {
+    relevantSections.push(`=== EDUCATION ===\n${sections.education}`)
+  }
+  
+  // Certification-related keywords
+  if (message.match(/certification|certified|cert|credential|azure|aws|microsoft/)) {
+    relevantSections.push(`=== CERTIFICATIONS ===\n${sections.certifications}`)
+  }
+  
+  // If no specific matches, include key sections
+  if (relevantSections.length === 1) { // Only summary
+    relevantSections.push(`=== TECHNICAL SKILLS ===\n${sections.skills}`)
+    relevantSections.push(`=== WORK EXPERIENCE ===\n${sections.experience}`)
+  }
+  
+  return relevantSections.join('\n\n')
+}
 
 export async function POST(req: Request) {
-  console.log("🚀 API Route called")
-  
   try {
-    // Check API key
-    const hasApiKey = !!process.env.OPENAI_API_KEY
-    const apiKeyLength = process.env.OPENAI_API_KEY?.length || 0
-    console.log("🔑 OPENAI_API_KEY exists:", hasApiKey)
-    console.log("🔑 OPENAI_API_KEY length:", apiKeyLength)
-    
-    if (!hasApiKey) {
-      console.error("❌ Missing OPENAI_API_KEY environment variable")
+    const { messages } = await req.json()
+
+    // Validate request
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
-        { reply: "OpenAI API key is not configured" },
-        { status: 500 }
+        { reply: "Please send a valid message to get started!" }, 
+        { status: 400 }
       )
     }
 
-    // Parse request
-    console.log("📥 Parsing request body...")
-    const { message } = await req.json()
-    console.log("💬 User message:", message?.substring(0, 100) + "...")
+    // Get the latest user message
+    const userMessage = messages[messages.length - 1]?.content || ""
+    console.log("🔍 DEBUG - User message:", userMessage)
+    
+    // Load resume sections
+    const sections = await getResumeSections()
+    
+    // Get relevant context based on user query
+    const relevantContext = getRelevantSections(userMessage, sections)
+    console.log("🔍 DEBUG - Relevant context length:", relevantContext.length)
 
-    // Get resume
-    console.log("📄 Getting resume text...")
-    const resume = await getResumeText()
-    console.log("📄 Resume length:", resume?.length || 0, "characters")
+    // Create a focused system prompt
+    const systemPrompt = `You are Kaushik speaking directly to someone asking about my background. I am a Software Engineer with cloud infrastructure expertise.
 
-    // Initialize OpenAI
-    console.log("🤖 Initializing OpenAI client...")
-    const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    })
+STRICT RULES:
+1. Always use "I", "my", "me" - NEVER "he", "his", "him", "Kaushik"
+2. Give specific details: company names, years, technologies, metrics
+3. If something isn't in my resume, say "I don't have that information in my resume"
+4. Keep responses under 150 words
+5. Sound natural and conversational
 
-    // Make API call
-    console.log("🔄 Making OpenAI API call...")
+MY RESUME DATA:
+${relevantContext}
+
+Examples of good responses:
+- "I worked at Charter Communications from May 2024 to April 2025 where I migrated databases to Azure SQL..."
+- "I'm experienced with Azure, AWS, Kubernetes, and Terraform. At my current role at Mastronardi Produce..."
+- "My recent projects include ContextBridge, which I built using Python and MCP integration..."
+
+Always speak as ME (Kaushik) directly answering the question.`
+
+    console.log("🔍 DEBUG - System prompt preview:", systemPrompt.substring(0, 100) + "...")
+
+    // Build conversation with context
+    const conversationMessages = [
+      { role: "system", content: systemPrompt },
+      // Only keep last few messages to avoid context dilution
+      ...messages.slice(-6)
+    ]
+
+    // Call OpenAI with optimized parameters
     const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You are an AI assistant for Sai Kaushik Manchala. Answer questions based on the following resume:
-
-${resume}
-
-Instructions:
-- Answer questions about Kaushik's skills, experience, projects, education, and background based on the resume
-- Be conversational and helpful 
-- Look for partial matches, acronyms, and related terms (e.g., if someone asks about "MCP", relate it to "MCP integration" in the projects)
-- If someone asks about specific technologies, tools, or concepts mentioned in the resume, provide relevant details
-- If the information is not in the resume or not related to Kaushik's background, politely say "This is not mentioned in Kaushik's resume" or "I don't have information about that in Kaushik's resume"
-- Be specific and detailed when the information is available in the resume
-- Use a friendly, professional tone`
-        },
-        { role: "user", content: message }
-      ]
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      messages: conversationMessages,
+      temperature: 0.3, // Lower temperature for more consistent first-person responses
+      max_tokens: 250,   
+      top_p: 0.8,
+      presence_penalty: 0.2,  // Encourage staying on topic
+      frequency_penalty: 0.3   // Reduce repetitive responses
     })
 
-    const reply = completion.choices[0].message.content
-    console.log("✅ OpenAI response received:", reply?.substring(0, 100) + "...")
-    
+    const reply = completion.choices[0].message.content?.trim() || 
+      "I apologize, but I couldn't generate a proper response. Could you try asking again?"
+
+    console.log("🔍 DEBUG - OpenAI reply:", reply)
     return NextResponse.json({ reply })
+
+  } catch (error: any) {
+    console.error("OpenAI API Error:", error)
     
-  } catch (err: any) {
-    console.error("❌ Error occurred:", err.name)
-    console.error("❌ Error message:", err.message)
-    console.error("❌ Error stack:", err.stack)
+    // More helpful error responses
+    const errorMessage = error?.error?.message || error?.message || "Unknown error"
     
-    // More specific error messages
-    if (err.message?.includes('API key')) {
+    if (errorMessage.includes("API key")) {
       return NextResponse.json(
-        { reply: "OpenAI API key issue: " + err.message },
+        { reply: "I'm having trouble with my configuration. Please check the API key setup." },
         { status: 500 }
       )
     }
     
-    if (err.message?.includes('quota')) {
+    if (errorMessage.includes("quota") || errorMessage.includes("rate limit")) {
       return NextResponse.json(
-        { reply: "OpenAI quota exceeded. Please try again later." },
-        { status: 500 }
+        { reply: "I'm currently experiencing high demand. Please try again in a moment." },
+        { status: 429 }
       )
     }
-    
+
     return NextResponse.json(
-      { 
-        reply: "Sorry, there was an error processing your request.", 
-        error: err.message 
-      },
+      { reply: "I encountered an issue processing your request. Please try again." },
       { status: 500 }
     )
   }
-}
-
-export async function GET() {
-  console.log("🔍 GET request to /api/chat")
-  
-  return NextResponse.json({ 
-    message: "Chat API is running",
-    hasApiKey: !!process.env.OPENAI_API_KEY,
-    apiKeyLength: process.env.OPENAI_API_KEY?.length || 0,
-    timestamp: new Date().toISOString()
-  })
 }
