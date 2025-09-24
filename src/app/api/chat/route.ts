@@ -2,9 +2,6 @@ import { NextResponse } from "next/server"
 import OpenAI from "openai"
 import { getResumeSections } from "@/lib/resume"
 
-// Remove the global client initialization - this was causing the build error!
-// const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
 // Enhanced keyword matching for better context retrieval
 function getRelevantSections(userMessage: string, sections: any) {
   const message = userMessage.toLowerCase()
@@ -49,8 +46,28 @@ function getRelevantSections(userMessage: string, sections: any) {
 
 export async function POST(req: Request) {
   try {
-    // Initialize the OpenAI client here instead of at module level
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    // Add debugging for environment variables
+    console.log("🔍 DEBUG - Environment check:", {
+      hasApiKey: !!process.env.OPENAI_API_KEY,
+      apiKeyLength: process.env.OPENAI_API_KEY?.length || 0,
+      nodeEnv: process.env.NODE_ENV,
+    });
+
+    // Check if API key exists before initializing client
+    if (!process.env.OPENAI_API_KEY) {
+      console.error("❌ OPENAI_API_KEY is missing!");
+      return NextResponse.json(
+        { reply: "Configuration error: API key is missing. Please check environment variables." },
+        { status: 500 }
+      );
+    }
+
+    // Clean the API key (remove any spaces or line breaks)
+    const cleanApiKey = process.env.OPENAI_API_KEY.replace(/\s+/g, '');
+    console.log("🔍 DEBUG - Cleaned API key length:", cleanApiKey.length);
+
+    // Initialize the OpenAI client
+    const client = new OpenAI({ apiKey: cleanApiKey })
 
     const { messages } = await req.json()
 
@@ -66,8 +83,18 @@ export async function POST(req: Request) {
     const userMessage = messages[messages.length - 1]?.content || ""
     console.log("🔍 DEBUG - User message:", userMessage)
     
-    // Load resume sections
-    const sections = await getResumeSections()
+    // Load resume sections with error handling
+    let sections;
+    try {
+      sections = await getResumeSections();
+      console.log("✅ Resume sections loaded successfully");
+    } catch (error) {
+      console.error("❌ Error loading resume sections:", error);
+      return NextResponse.json(
+        { reply: "I'm having trouble accessing my resume data. Please try again." },
+        { status: 500 }
+      );
+    }
     
     // Get relevant context based on user query
     const relevantContext = getRelevantSections(userMessage, sections)
@@ -102,16 +129,20 @@ Always speak as ME (Kaushik) directly answering the question.`
       ...messages.slice(-6)
     ]
 
+    console.log("🔍 DEBUG - About to call OpenAI API...");
+
     // Call OpenAI with optimized parameters
     const completion = await client.chat.completions.create({
       model: process.env.OPENAI_MODEL || "gpt-4o-mini",
       messages: conversationMessages,
-      temperature: 0.3, // Lower temperature for more consistent first-person responses
+      temperature: 0.3,
       max_tokens: 250,   
       top_p: 0.8,
-      presence_penalty: 0.2,  // Encourage staying on topic
-      frequency_penalty: 0.3   // Reduce repetitive responses
+      presence_penalty: 0.2,
+      frequency_penalty: 0.3
     })
+
+    console.log("✅ OpenAI API call successful");
 
     const reply = completion.choices[0].message.content?.trim() || 
       "I apologize, but I couldn't generate a proper response. Could you try asking again?"
@@ -120,14 +151,19 @@ Always speak as ME (Kaushik) directly answering the question.`
     return NextResponse.json({ reply })
 
   } catch (error: any) {
-    console.error("OpenAI API Error:", error)
+    console.error("❌ API Error Details:", {
+      message: error?.message,
+      code: error?.code,
+      type: error?.type,
+      stack: error?.stack?.split('\n')[0] // First line of stack trace
+    });
     
     // More helpful error responses
     const errorMessage = error?.error?.message || error?.message || "Unknown error"
     
-    if (errorMessage.includes("API key")) {
+    if (errorMessage.includes("API key") || errorMessage.includes("Incorrect API key")) {
       return NextResponse.json(
-        { reply: "I'm having trouble with my configuration. Please check the API key setup." },
+        { reply: "Configuration issue: Invalid or missing API key. Please check the OpenAI API key setup." },
         { status: 500 }
       )
     }
@@ -139,8 +175,15 @@ Always speak as ME (Kaushik) directly answering the question.`
       )
     }
 
+    if (errorMessage.includes("network") || errorMessage.includes("timeout")) {
+      return NextResponse.json(
+        { reply: "Network connection issue. Please try again." },
+        { status: 503 }
+      )
+    }
+
     return NextResponse.json(
-      { reply: "I encountered an issue processing your request. Please try again." },
+      { reply: `I encountered an issue: ${errorMessage}. Please try again.` },
       { status: 500 }
     )
   }
