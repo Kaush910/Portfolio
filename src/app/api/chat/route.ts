@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import OpenAI from "openai"
 import { getResumeSections } from "@/lib/resume"
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+// Remove the global client initialization - this was causing the build error!
+// const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 // Enhanced keyword matching for better context retrieval
 function getRelevantSections(userMessage: string, sections: any) {
@@ -48,6 +49,9 @@ function getRelevantSections(userMessage: string, sections: any) {
 
 export async function POST(req: Request) {
   try {
+    // Initialize the OpenAI client here instead of at module level
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
     const { messages } = await req.json()
 
     // Validate request
