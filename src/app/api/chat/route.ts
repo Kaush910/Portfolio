@@ -46,16 +46,26 @@ function getRelevantSections(userMessage: string, sections: any) {
 
 export async function POST(req: Request) {
   try {
-    // Add debugging for environment variables
-    console.log("🔍 DEBUG - Environment check:", {
-      hasApiKey: !!process.env.OPENAI_API_KEY,
-      apiKeyLength: process.env.OPENAI_API_KEY?.length || 0,
-      nodeEnv: process.env.NODE_ENV,
+    // Debug all environment variables to see what's available
+    console.log("🔍 DEBUG - All env vars starting with API:", Object.keys(process.env).filter(key => key.includes('API')));
+    console.log("🔍 DEBUG - All env vars starting with OPENAI:", Object.keys(process.env).filter(key => key.includes('OPENAI')));
+    
+    // Try multiple environment variable names including API_KEY
+    const apiKey = process.env.API_KEY || process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || process.env.MY_OPENAI_KEY;
+    
+    console.log("🔍 DEBUG - API Key check:", {
+      API_KEY_exists: !!process.env.API_KEY,
+      API_KEY_length: process.env.API_KEY?.length || 0,
+      OPENAI_API_KEY_exists: !!process.env.OPENAI_API_KEY,
+      OPENAI_API_KEY_length: process.env.OPENAI_API_KEY?.length || 0,
+      OPENAI_KEY_exists: !!process.env.OPENAI_KEY,
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL: process.env.VERCEL,
+      VERCEL_ENV: process.env.VERCEL_ENV
     });
 
-    // Check if API key exists before initializing client
-    if (!process.env.OPENAI_API_KEY) {
-      console.error("❌ OPENAI_API_KEY is missing!");
+    if (!apiKey) {
+      console.error("❌ No API key found in any environment variable!");
       return NextResponse.json(
         { reply: "Configuration error: API key is missing. Please check environment variables." },
         { status: 500 }
@@ -63,8 +73,8 @@ export async function POST(req: Request) {
     }
 
     // Clean the API key (remove any spaces or line breaks)
-    const cleanApiKey = process.env.OPENAI_API_KEY.replace(/\s+/g, '');
-    console.log("🔍 DEBUG - Cleaned API key length:", cleanApiKey.length);
+    const cleanApiKey = apiKey.replace(/\s+/g, '');
+    console.log("🔍 DEBUG - Using API key, cleaned length:", cleanApiKey.length);
 
     // Initialize the OpenAI client
     const client = new OpenAI({ apiKey: cleanApiKey })
@@ -167,6 +177,26 @@ Always speak as ME (Kaushik) directly answering the question.`
         { status: 500 }
       )
     }
+    
+    if (errorMessage.includes("quota") || errorMessage.includes("rate limit")) {
+      return NextResponse.json(
+        { reply: "I'm currently experiencing high demand. Please try again in a moment." },
+        { status: 429 }
+      )
+    }
+
+    if (errorMessage.includes("network") || errorMessage.includes("timeout")) {
+      return NextResponse.json(
+        { reply: "Network connection issue. Please try again." },
+        { status: 503 }
+      )
+    }
+
+    return NextResponse.json(
+      { reply: `I encountered an issue: ${errorMessage}. Please try again.` },
+      { status: 500 }
+    )
+  }
     
     if (errorMessage.includes("quota") || errorMessage.includes("rate limit")) {
       return NextResponse.json(
