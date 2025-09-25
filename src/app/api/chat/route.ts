@@ -60,10 +60,22 @@ export async function POST(req: Request) {
     });
 
     // Try multiple ways to get the API key
-    const apiKey = process.env.OPENAI_API_KEY || 
-                   process.env.API_KEY || 
-                   process.env['OPENAI_API_KEY'] ||
-                   process.env['API_KEY'];
+    let apiKey = process.env.MY_SECRET_KEY ||
+                 process.env.OPENAI_API_KEY || 
+                 process.env.OPENAI_KEY ||
+                 process.env.MY_OPENAI_KEY ||
+                 process.env.API_KEY_OPENAI ||
+                 process.env.CHAT_API_KEY;
+
+    // If we have a base64 encoded key, decode it
+    if (process.env.OPENAI_API_KEY_BASE64) {
+      try {
+        apiKey = Buffer.from(process.env.OPENAI_API_KEY_BASE64, 'base64').toString('utf-8');
+        console.log("🔍 DEBUG - Using base64 decoded key");
+      } catch (e) {
+        console.error("❌ Failed to decode base64 key:", e);
+      }
+    }
     
     console.log("🔍 DEBUG - API Key attempts:", {
       OPENAI_API_KEY: {
@@ -99,6 +111,23 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+
+    // Additional validation for API key format
+    console.log("🔍 DEBUG - API Key validation:", {
+      length: apiKey.length,
+      expectedLength: "Should be ~164 characters",
+      startsWithSk: apiKey.startsWith('sk-'),
+      hasProj: apiKey.includes('proj-'),
+      segments: apiKey.split('-').length,
+      firstSegment: apiKey.split('-')[0],
+      secondSegment: apiKey.split('-')[1],
+      keyStructure: `${apiKey.substring(0, 15)}...${apiKey.substring(apiKey.length - 10)}`,
+      // Show the EXACT key (temporarily for debugging)
+      exactKey: apiKey,
+      keyAsArray: Array.from(apiKey).slice(0, 20).map(c => c.charCodeAt(0)),
+      hasWhitespace: /\s/.test(apiKey),
+      trimmedLength: apiKey.trim().length
+    });
 
     // Initialize the OpenAI client - no need to clean the key
     const client = new OpenAI({ apiKey });
@@ -156,23 +185,46 @@ Always speak as ME (Kaushik) directly answering the question.`;
 
     console.log("🔍 DEBUG - About to call OpenAI API...");
 
-    const completion = await client.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      messages: conversationMessages,
-      temperature: 0.3,
-      max_tokens: 250,   
-      top_p: 0.8,
-      presence_penalty: 0.2,
-      frequency_penalty: 0.3
-    });
+    try {
+      const completion = await client.chat.completions.create({
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        messages: conversationMessages,
+        temperature: 0.3,
+        max_tokens: 250,   
+        top_p: 0.8,
+        presence_penalty: 0.2,
+        frequency_penalty: 0.3
+      });
 
-    console.log("✅ OpenAI API call successful");
+      console.log("✅ OpenAI API call successful");
 
-    const reply = completion.choices[0].message.content?.trim() || 
-      "I apologize, but I couldn't generate a proper response. Could you try asking again?";
+      const reply = completion.choices[0].message.content?.trim() || 
+        "I apologize, but I couldn't generate a proper response. Could you try asking again?";
 
-    console.log("🔍 DEBUG - OpenAI reply:", reply);
-    return NextResponse.json({ reply });
+      console.log("🔍 DEBUG - OpenAI reply:", reply);
+      return NextResponse.json({ reply });
+      
+    } catch (apiError: any) {
+      console.error("🔥 OpenAI API Error Details:", {
+        message: apiError?.message,
+        code: apiError?.code,
+        type: apiError?.type,
+        status: apiError?.status,
+        error: apiError?.error,
+        response: apiError?.response?.data,
+        stack: apiError?.stack?.split('\n').slice(0, 3)
+      });
+      
+      // More specific error handling
+      if (apiError?.code === 'invalid_api_key' || apiError?.message?.includes('Incorrect API key')) {
+        return NextResponse.json(
+          { reply: `API Key Error: ${apiError.message}. Key format appears correct but OpenAI rejected it.` },
+          { status: 401 }
+        );
+      }
+      
+      throw apiError; // Re-throw to be caught by outer catch
+    }
 
   } catch (error: any) {
     console.error("❌ API Error Details:", {
