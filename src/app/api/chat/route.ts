@@ -46,39 +46,56 @@ function getRelevantSections(userMessage: string, sections: any) {
 
 export async function POST(req: Request) {
   try {
-    // Simplified API key handling
-    const apiKey = process.env.OPENAI_API_KEY;
-    
-    console.log("🔍 DEBUG - Environment info:", {
+    // Enhanced debugging for Vercel deployment issues
+    console.log("🔍 DEBUG - Full environment analysis:", {
       NODE_ENV: process.env.NODE_ENV,
       VERCEL: process.env.VERCEL,
       VERCEL_ENV: process.env.VERCEL_ENV,
-      VERCEL_REGION: process.env.VERCEL_REGION
-    });
-    
-    console.log("🔍 DEBUG - API Key check:", {
-      exists: !!apiKey,
-      length: apiKey?.length || 0,
-      startsCorrectly: apiKey?.startsWith('sk-') || false,
-      firstChars: apiKey?.substring(0, 8) || 'none',
-      // Show all env vars containing 'API' or 'OPENAI' for debugging
-      allEnvKeys: Object.keys(process.env).filter(key => 
-        key.includes('API') || key.includes('OPENAI')
+      VERCEL_REGION: process.env.VERCEL_REGION,
+      totalEnvVars: Object.keys(process.env).length,
+      allEnvKeys: Object.keys(process.env).sort(),
+      apiRelatedKeys: Object.keys(process.env).filter(key => 
+        key.toLowerCase().includes('api') || key.toLowerCase().includes('openai')
       )
     });
 
+    // Try multiple ways to get the API key
+    const apiKey = process.env.OPENAI_API_KEY || 
+                   process.env.API_KEY || 
+                   process.env['OPENAI_API_KEY'] ||
+                   process.env['API_KEY'];
+    
+    console.log("🔍 DEBUG - API Key attempts:", {
+      OPENAI_API_KEY: {
+        exists: !!process.env.OPENAI_API_KEY,
+        length: process.env.OPENAI_API_KEY?.length || 0,
+        type: typeof process.env.OPENAI_API_KEY
+      },
+      API_KEY: {
+        exists: !!process.env.API_KEY,
+        length: process.env.API_KEY?.length || 0,
+        type: typeof process.env.API_KEY
+      },
+      finalKey: {
+        exists: !!apiKey,
+        length: apiKey?.length || 0,
+        startsCorrectly: apiKey?.startsWith('sk-') || false,
+        firstChars: apiKey?.substring(0, 10) || 'none'
+      }
+    });
+
+    // Return debug info if no API key found
     if (!apiKey) {
-      console.error("❌ OPENAI_API_KEY environment variable not found!");
-      return NextResponse.json(
-        { reply: "Configuration error: OPENAI_API_KEY environment variable is missing." },
-        { status: 500 }
-      );
+      console.error("❌ No API key found in any environment variable!");
+      return NextResponse.json({
+        reply: `DEBUG: No API key found. Available env vars: ${Object.keys(process.env).filter(k => k.includes('API') || k.includes('OPENAI')).join(', ') || 'none'}. Total env vars: ${Object.keys(process.env).length}. Vercel: ${process.env.VERCEL}. Env: ${process.env.VERCEL_ENV}`
+      }, { status: 500 });
     }
 
     if (!apiKey.startsWith('sk-')) {
-      console.error("❌ API key doesn't start with 'sk-'");
+      console.error("❌ API key doesn't start with 'sk-':", apiKey.substring(0, 10));
       return NextResponse.json(
-        { reply: "Configuration error: Invalid API key format." },
+        { reply: `Configuration error: Invalid API key format. Key starts with: ${apiKey.substring(0, 10)}` },
         { status: 500 }
       );
     }
