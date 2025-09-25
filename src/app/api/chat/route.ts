@@ -46,38 +46,45 @@ function getRelevantSections(userMessage: string, sections: any) {
 
 export async function POST(req: Request) {
   try {
-    // Debug all environment variables to see what's available
-    console.log("🔍 DEBUG - All env vars starting with API:", Object.keys(process.env).filter(key => key.includes('API')));
-    console.log("🔍 DEBUG - All env vars starting with OPENAI:", Object.keys(process.env).filter(key => key.includes('OPENAI')));
+    // Simplified API key handling
+    const apiKey = process.env.OPENAI_API_KEY;
     
-    // Try multiple environment variable names including API_KEY
-    const apiKey = process.env.API_KEY || process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || process.env.MY_OPENAI_KEY;
-    
-    console.log("🔍 DEBUG - API Key check:", {
-      API_KEY_exists: !!process.env.API_KEY,
-      API_KEY_length: process.env.API_KEY?.length || 0,
-      OPENAI_API_KEY_exists: !!process.env.OPENAI_API_KEY,
-      OPENAI_API_KEY_length: process.env.OPENAI_API_KEY?.length || 0,
-      OPENAI_KEY_exists: !!process.env.OPENAI_KEY,
+    console.log("🔍 DEBUG - Environment info:", {
       NODE_ENV: process.env.NODE_ENV,
       VERCEL: process.env.VERCEL,
-      VERCEL_ENV: process.env.VERCEL_ENV
+      VERCEL_ENV: process.env.VERCEL_ENV,
+      VERCEL_REGION: process.env.VERCEL_REGION
+    });
+    
+    console.log("🔍 DEBUG - API Key check:", {
+      exists: !!apiKey,
+      length: apiKey?.length || 0,
+      startsCorrectly: apiKey?.startsWith('sk-') || false,
+      firstChars: apiKey?.substring(0, 8) || 'none',
+      // Show all env vars containing 'API' or 'OPENAI' for debugging
+      allEnvKeys: Object.keys(process.env).filter(key => 
+        key.includes('API') || key.includes('OPENAI')
+      )
     });
 
     if (!apiKey) {
-      console.error("❌ No API key found in any environment variable!");
+      console.error("❌ OPENAI_API_KEY environment variable not found!");
       return NextResponse.json(
-        { reply: "Configuration error: API key is missing. Please check environment variables." },
+        { reply: "Configuration error: OPENAI_API_KEY environment variable is missing." },
         { status: 500 }
       );
     }
 
-    // Clean the API key
-    const cleanApiKey = apiKey.replace(/\s+/g, '');
-    console.log("🔍 DEBUG - Using API key, cleaned length:", cleanApiKey.length);
+    if (!apiKey.startsWith('sk-')) {
+      console.error("❌ API key doesn't start with 'sk-'");
+      return NextResponse.json(
+        { reply: "Configuration error: Invalid API key format." },
+        { status: 500 }
+      );
+    }
 
-    // Initialize the OpenAI client
-    const client = new OpenAI({ apiKey: cleanApiKey });
+    // Initialize the OpenAI client - no need to clean the key
+    const client = new OpenAI({ apiKey });
 
     const { messages } = await req.json();
 
@@ -155,19 +162,20 @@ Always speak as ME (Kaushik) directly answering the question.`;
       message: error?.message,
       code: error?.code,
       type: error?.type,
-      stack: error?.stack?.split('\n')[0]
+      status: error?.status,
+      response: error?.response?.data
     });
     
     const errorMessage = error?.error?.message || error?.message || "Unknown error";
     
-    if (errorMessage.includes("API key") || errorMessage.includes("Incorrect API key")) {
+    if (errorMessage.includes("API key") || errorMessage.includes("Incorrect API key") || error?.code === 'invalid_api_key') {
       return NextResponse.json(
-        { reply: "Configuration issue: Invalid or missing API key. Please check the OpenAI API key setup." },
+        { reply: "Configuration issue: The OpenAI API key appears to be invalid. Please check the key setup." },
         { status: 500 }
       );
     }
     
-    if (errorMessage.includes("quota") || errorMessage.includes("rate limit")) {
+    if (errorMessage.includes("quota") || errorMessage.includes("rate limit") || error?.code === 'insufficient_quota') {
       return NextResponse.json(
         { reply: "I'm currently experiencing high demand. Please try again in a moment." },
         { status: 429 }
