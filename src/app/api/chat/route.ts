@@ -72,28 +72,25 @@ export async function POST(req: Request) {
       );
     }
 
-    // Clean the API key (remove any spaces or line breaks)
+    // Clean the API key
     const cleanApiKey = apiKey.replace(/\s+/g, '');
     console.log("🔍 DEBUG - Using API key, cleaned length:", cleanApiKey.length);
 
     // Initialize the OpenAI client
-    const client = new OpenAI({ apiKey: cleanApiKey })
+    const client = new OpenAI({ apiKey: cleanApiKey });
 
-    const { messages } = await req.json()
+    const { messages } = await req.json();
 
-    // Validate request
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
         { reply: "Please send a valid message to get started!" }, 
         { status: 400 }
-      )
+      );
     }
 
-    // Get the latest user message
-    const userMessage = messages[messages.length - 1]?.content || ""
-    console.log("🔍 DEBUG - User message:", userMessage)
+    const userMessage = messages[messages.length - 1]?.content || "";
+    console.log("🔍 DEBUG - User message:", userMessage);
     
-    // Load resume sections with error handling
     let sections;
     try {
       sections = await getResumeSections();
@@ -106,11 +103,9 @@ export async function POST(req: Request) {
       );
     }
     
-    // Get relevant context based on user query
-    const relevantContext = getRelevantSections(userMessage, sections)
-    console.log("🔍 DEBUG - Relevant context length:", relevantContext.length)
+    const relevantContext = getRelevantSections(userMessage, sections);
+    console.log("🔍 DEBUG - Relevant context length:", relevantContext.length);
 
-    // Create a focused system prompt
     const systemPrompt = `You are Kaushik speaking directly to someone asking about my background. I am a Software Engineer with cloud infrastructure expertise.
 
 STRICT RULES:
@@ -128,20 +123,15 @@ Examples of good responses:
 - "I'm experienced with Azure, AWS, Kubernetes, and Terraform. At my current role at Mastronardi Produce..."
 - "My recent projects include ContextBridge, which I built using Python and MCP integration..."
 
-Always speak as ME (Kaushik) directly answering the question.`
+Always speak as ME (Kaushik) directly answering the question.`;
 
-    console.log("🔍 DEBUG - System prompt preview:", systemPrompt.substring(0, 100) + "...")
-
-    // Build conversation with context
     const conversationMessages = [
       { role: "system", content: systemPrompt },
-      // Only keep last few messages to avoid context dilution
       ...messages.slice(-6)
-    ]
+    ];
 
     console.log("🔍 DEBUG - About to call OpenAI API...");
 
-    // Call OpenAI with optimized parameters
     const completion = await client.chat.completions.create({
       model: process.env.OPENAI_MODEL || "gpt-4o-mini",
       messages: conversationMessages,
@@ -150,71 +140,50 @@ Always speak as ME (Kaushik) directly answering the question.`
       top_p: 0.8,
       presence_penalty: 0.2,
       frequency_penalty: 0.3
-    })
+    });
 
     console.log("✅ OpenAI API call successful");
 
     const reply = completion.choices[0].message.content?.trim() || 
-      "I apologize, but I couldn't generate a proper response. Could you try asking again?"
+      "I apologize, but I couldn't generate a proper response. Could you try asking again?";
 
-    console.log("🔍 DEBUG - OpenAI reply:", reply)
-    return NextResponse.json({ reply })
+    console.log("🔍 DEBUG - OpenAI reply:", reply);
+    return NextResponse.json({ reply });
 
   } catch (error: any) {
     console.error("❌ API Error Details:", {
       message: error?.message,
       code: error?.code,
       type: error?.type,
-      stack: error?.stack?.split('\n')[0] // First line of stack trace
+      stack: error?.stack?.split('\n')[0]
     });
     
-    // More helpful error responses
-    const errorMessage = error?.error?.message || error?.message || "Unknown error"
+    const errorMessage = error?.error?.message || error?.message || "Unknown error";
     
     if (errorMessage.includes("API key") || errorMessage.includes("Incorrect API key")) {
       return NextResponse.json(
         { reply: "Configuration issue: Invalid or missing API key. Please check the OpenAI API key setup." },
         { status: 500 }
-      )
+      );
     }
     
     if (errorMessage.includes("quota") || errorMessage.includes("rate limit")) {
       return NextResponse.json(
         { reply: "I'm currently experiencing high demand. Please try again in a moment." },
         { status: 429 }
-      )
+      );
     }
 
     if (errorMessage.includes("network") || errorMessage.includes("timeout")) {
       return NextResponse.json(
         { reply: "Network connection issue. Please try again." },
         { status: 503 }
-      )
+      );
     }
 
     return NextResponse.json(
       { reply: `I encountered an issue: ${errorMessage}. Please try again.` },
       { status: 500 }
-    )
-  }
-    
-    if (errorMessage.includes("quota") || errorMessage.includes("rate limit")) {
-      return NextResponse.json(
-        { reply: "I'm currently experiencing high demand. Please try again in a moment." },
-        { status: 429 }
-      )
-    }
-
-    if (errorMessage.includes("network") || errorMessage.includes("timeout")) {
-      return NextResponse.json(
-        { reply: "Network connection issue. Please try again." },
-        { status: 503 }
-      )
-    }
-
-    return NextResponse.json(
-      { reply: `I encountered an issue: ${errorMessage}. Please try again.` },
-      { status: 500 }
-    )
+    );
   }
 }
