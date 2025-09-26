@@ -46,118 +46,62 @@ function getRelevantSections(userMessage: string, sections: any) {
 
 export async function POST(req: Request) {
   try {
-    // Enhanced debugging for Vercel deployment issues
-    console.log("🔍 DEBUG - Full environment analysis:", {
-      NODE_ENV: process.env.NODE_ENV,
-      VERCEL: process.env.VERCEL,
-      VERCEL_ENV: process.env.VERCEL_ENV,
-      VERCEL_REGION: process.env.VERCEL_REGION,
-      totalEnvVars: Object.keys(process.env).length,
-      allEnvKeys: Object.keys(process.env).sort(),
-      apiRelatedKeys: Object.keys(process.env).filter(key => 
-        key.toLowerCase().includes('api') || key.toLowerCase().includes('openai')
-      )
-    });
+    // Simplified API key retrieval with proper trimming
+    let apiKey = process.env.OPENAI_API_KEY?.trim() || 
+                 process.env.MY_SECRET_KEY?.trim() ||
+                 process.env.OPENAI_KEY?.trim() ||
+                 process.env.MY_OPENAI_KEY?.trim()
 
-    // Try multiple ways to get the API key
-    let apiKey = process.env.MY_SECRET_KEY ||
-                 process.env.OPENAI_API_KEY || 
-                 process.env.OPENAI_KEY ||
-                 process.env.MY_OPENAI_KEY ||
-                 process.env.API_KEY_OPENAI ||
-                 process.env.CHAT_API_KEY;
+    console.log("🔍 API Key Debug:", {
+      hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+      keyLength: apiKey?.length || 0,
+      startsWithSk: apiKey?.startsWith('sk-') || false,
+      environment: process.env.NODE_ENV,
+      vercelEnv: process.env.VERCEL_ENV
+    })
 
-    // If we have a base64 encoded key, decode it
-    if (process.env.OPENAI_API_KEY_BASE64) {
-      try {
-        apiKey = Buffer.from(process.env.OPENAI_API_KEY_BASE64, 'base64').toString('utf-8');
-        console.log("🔍 DEBUG - Using base64 decoded key");
-      } catch (e) {
-        console.error("❌ Failed to decode base64 key:", e);
-      }
-    }
-    
-    console.log("🔍 DEBUG - API Key attempts:", {
-      OPENAI_API_KEY: {
-        exists: !!process.env.OPENAI_API_KEY,
-        length: process.env.OPENAI_API_KEY?.length || 0,
-        type: typeof process.env.OPENAI_API_KEY
-      },
-      API_KEY: {
-        exists: !!process.env.API_KEY,
-        length: process.env.API_KEY?.length || 0,
-        type: typeof process.env.API_KEY
-      },
-      finalKey: {
-        exists: !!apiKey,
-        length: apiKey?.length || 0,
-        startsCorrectly: apiKey?.startsWith('sk-') || false,
-        firstChars: apiKey?.substring(0, 10) || 'none'
-      }
-    });
-
-    // Return debug info if no API key found
     if (!apiKey) {
-      console.error("❌ No API key found in any environment variable!");
+      console.error("❌ No API key found in environment variables")
       return NextResponse.json({
-        reply: `DEBUG: No API key found. Available env vars: ${Object.keys(process.env).filter(k => k.includes('API') || k.includes('OPENAI')).join(', ') || 'none'}. Total env vars: ${Object.keys(process.env).length}. Vercel: ${process.env.VERCEL}. Env: ${process.env.VERCEL_ENV}`
-      }, { status: 500 });
+        reply: "Server configuration error: API key not found. Please contact the administrator."
+      }, { status: 500 })
     }
 
     if (!apiKey.startsWith('sk-')) {
-      console.error("❌ API key doesn't start with 'sk-':", apiKey.substring(0, 10));
-      return NextResponse.json(
-        { reply: `Configuration error: Invalid API key format. Key starts with: ${apiKey.substring(0, 10)}` },
-        { status: 500 }
-      );
+      console.error("❌ Invalid API key format")
+      return NextResponse.json({
+        reply: "Server configuration error: Invalid API key format."
+      }, { status: 500 })
     }
 
-    // Additional validation for API key format
-    console.log("🔍 DEBUG - API Key validation:", {
-      length: apiKey.length,
-      expectedLength: "Should be ~164 characters",
-      startsWithSk: apiKey.startsWith('sk-'),
-      hasProj: apiKey.includes('proj-'),
-      segments: apiKey.split('-').length,
-      firstSegment: apiKey.split('-')[0],
-      secondSegment: apiKey.split('-')[1],
-      keyStructure: `${apiKey.substring(0, 15)}...${apiKey.substring(apiKey.length - 10)}`,
-      // Show the EXACT key (temporarily for debugging)
-      exactKey: apiKey,
-      keyAsArray: Array.from(apiKey).slice(0, 20).map(c => c.charCodeAt(0)),
-      hasWhitespace: /\s/.test(apiKey),
-      trimmedLength: apiKey.trim().length
-    });
+    // Initialize OpenAI client
+    const openai = new OpenAI({
+      apiKey: apiKey,
+    })
 
-    // Initialize the OpenAI client - no need to clean the key
-    const client = new OpenAI({ apiKey });
-
-    const { messages } = await req.json();
+    const { messages } = await req.json()
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
         { reply: "Please send a valid message to get started!" }, 
         { status: 400 }
-      );
+      )
     }
 
-    const userMessage = messages[messages.length - 1]?.content || "";
-    console.log("🔍 DEBUG - User message:", userMessage);
+    const userMessage = messages[messages.length - 1]?.content || ""
     
-    let sections;
+    let sections
     try {
-      sections = await getResumeSections();
-      console.log("✅ Resume sections loaded successfully");
+      sections = await getResumeSections()
     } catch (error) {
-      console.error("❌ Error loading resume sections:", error);
+      console.error("❌ Error loading resume sections:", error)
       return NextResponse.json(
         { reply: "I'm having trouble accessing my resume data. Please try again." },
         { status: 500 }
-      );
+      )
     }
     
-    const relevantContext = getRelevantSections(userMessage, sections);
-    console.log("🔍 DEBUG - Relevant context length:", relevantContext.length);
+    const relevantContext = getRelevantSections(userMessage, sections)
 
     const systemPrompt = `You are Kaushik speaking directly to someone asking about my background. I am a Software Engineer with cloud infrastructure expertise.
 
@@ -176,91 +120,63 @@ Examples of good responses:
 - "I'm experienced with Azure, AWS, Kubernetes, and Terraform. At my current role at Mastronardi Produce..."
 - "My recent projects include ContextBridge, which I built using Python and MCP integration..."
 
-Always speak as ME (Kaushik) directly answering the question.`;
+Always speak as ME (Kaushik) directly answering the question.`
 
     const conversationMessages = [
       { role: "system", content: systemPrompt },
       ...messages.slice(-6)
-    ];
-
-    console.log("🔍 DEBUG - About to call OpenAI API...");
+    ]
 
     try {
-      const completion = await client.chat.completions.create({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
         messages: conversationMessages,
         temperature: 0.3,
         max_tokens: 250,   
         top_p: 0.8,
         presence_penalty: 0.2,
         frequency_penalty: 0.3
-      });
-
-      console.log("✅ OpenAI API call successful");
+      })
 
       const reply = completion.choices[0].message.content?.trim() || 
-        "I apologize, but I couldn't generate a proper response. Could you try asking again?";
+        "I apologize, but I couldn't generate a proper response. Could you try asking again?"
 
-      console.log("🔍 DEBUG - OpenAI reply:", reply);
-      return NextResponse.json({ reply });
+      return NextResponse.json({ reply })
       
     } catch (apiError: any) {
-      console.error("🔥 OpenAI API Error Details:", {
+      console.error("🔥 OpenAI API Error:", {
         message: apiError?.message,
         code: apiError?.code,
         type: apiError?.type,
-        status: apiError?.status,
-        error: apiError?.error,
-        response: apiError?.response?.data,
-        stack: apiError?.stack?.split('\n').slice(0, 3)
-      });
+        status: apiError?.status
+      })
       
-      // More specific error handling
-      if (apiError?.code === 'invalid_api_key' || apiError?.message?.includes('Incorrect API key')) {
+      if (apiError?.code === 'invalid_api_key') {
         return NextResponse.json(
-          { reply: `API Key Error: ${apiError.message}. Key format appears correct but OpenAI rejected it.` },
+          { reply: "API authentication failed. Please check the API key configuration." },
           { status: 401 }
-        );
+        )
       }
       
-      throw apiError; // Re-throw to be caught by outer catch
+      if (apiError?.code === 'insufficient_quota') {
+        return NextResponse.json(
+          { reply: "API quota exceeded. Please try again later." },
+          { status: 429 }
+        )
+      }
+      
+      return NextResponse.json(
+        { reply: "I'm experiencing technical difficulties. Please try again." },
+        { status: 500 }
+      )
     }
 
   } catch (error: any) {
-    console.error("❌ API Error Details:", {
-      message: error?.message,
-      code: error?.code,
-      type: error?.type,
-      status: error?.status,
-      response: error?.response?.data
-    });
+    console.error("❌ General Error:", error?.message)
     
-    const errorMessage = error?.error?.message || error?.message || "Unknown error";
-    
-    if (errorMessage.includes("API key") || errorMessage.includes("Incorrect API key") || error?.code === 'invalid_api_key') {
-      return NextResponse.json(
-        { reply: "Configuration issue: The OpenAI API key appears to be invalid. Please check the key setup." },
-        { status: 500 }
-      );
-    }
-    
-    if (errorMessage.includes("quota") || errorMessage.includes("rate limit") || error?.code === 'insufficient_quota') {
-      return NextResponse.json(
-        { reply: "I'm currently experiencing high demand. Please try again in a moment." },
-        { status: 429 }
-      );
-    }
-
-    if (errorMessage.includes("network") || errorMessage.includes("timeout")) {
-      return NextResponse.json(
-        { reply: "Network connection issue. Please try again." },
-        { status: 503 }
-      );
-    }
-
     return NextResponse.json(
-      { reply: `I encountered an issue: ${errorMessage}. Please try again.` },
+      { reply: "An unexpected error occurred. Please try again." },
       { status: 500 }
-    );
+    )
   }
 }
